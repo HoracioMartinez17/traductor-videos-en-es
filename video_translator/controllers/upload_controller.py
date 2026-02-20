@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -145,7 +146,7 @@ async def upload_video_async(file: UploadFile):
         
         # Mover a directorio de jobs con el ID
         saved_path = JOBS_DIR / f"{job_id}_input.mp4"
-        os.rename(temp_path, str(saved_path))
+        shutil.move(temp_path, str(saved_path))
         
         # Actualizar path en DB
         from video_translator.models.job import update_job_status, JobStatus, get_job
