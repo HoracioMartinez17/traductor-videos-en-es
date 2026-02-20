@@ -636,7 +636,7 @@
                 const { job_id } = await uploadResponse.json();
                 currentAbortController = null;  // Ya no podemos cancelar el upload
 
-                setResult('Video encolado. Esperando procesamiento en tu PC...', 'info');
+                setResult('Video encolado. Esperando procesamiento en PC...', 'info');
                 startProgress('En cola / procesando');
 
                 // Iniciar polling
