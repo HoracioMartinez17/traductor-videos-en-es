@@ -84,6 +84,11 @@
             font-size: 0.9rem;
         }
 
+        .submit-actions {
+            display: flex;
+            gap: 8px;
+        }
+
         button {
             width: 100%;
             border: 1px solid #e5e5e5;
@@ -109,6 +114,16 @@
             opacity: 0.7;
             cursor: not-allowed;
             transform: none;
+        }
+
+        .btn-secondary {
+            border-color: #3f3f46;
+            background: #111111;
+            color: #fafafa;
+        }
+
+        .btn-secondary:hover {
+            border-color: #737373;
         }
 
         #result {
@@ -278,6 +293,14 @@
                 font-size: 0.95rem;
             }
 
+            .submit-actions {
+                flex-wrap: wrap;
+            }
+
+            .submit-actions button {
+                flex: 1 1 100%;
+            }
+
             #result {
                 font-size: 0.9rem;
                 padding: 10px 12px;
@@ -327,7 +350,10 @@
                 <input type="file" name="file" id="fileInput" accept="video/*" required>
                 <div id="fileName" class="file-name">No has seleccionado ningún archivo.</div>
             </div>
-            <button id="submitBtn" type="submit">Subir y traducir</button>
+            <div class="submit-actions">
+                <button id="submitBtn" type="submit">Subir y traducir</button>
+                <button id="cancelBtn" class="btn-secondary" type="button" hidden>Cancelar</button>
+            </div>
         </form>
 
         <div id="result" role="status" aria-live="polite"></div>
@@ -357,6 +383,7 @@
         const fileInput = document.getElementById('fileInput');
         const result = document.getElementById('result');
         const submitBtn = document.getElementById('submitBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
         const fileName = document.getElementById('fileName');
         const progressWrap = document.getElementById('progressWrap');
         const elapsedTime = document.getElementById('elapsedTime');
@@ -371,6 +398,7 @@
         const DB_VERSION = 1;
         const STORE_NAME = 'translatedVideos';
         const VIDEO_KEY = 'latest';
+        let currentAbortController = null;
 
         function setResult(message, type) {
             result.className = type;
@@ -514,6 +542,10 @@
         form.addEventListener('submit', async function(event) {
             event.preventDefault();
 
+            if (currentAbortController) {
+                return;
+            }
+
             if (!fileInput.files[0]) {
                 setResult('Selecciona un video antes de continuar.', 'error');
                 return;
@@ -523,14 +555,18 @@
             formData.append('file', fileInput.files[0]);
 
             submitBtn.disabled = true;
+            cancelBtn.hidden = false;
+            cancelBtn.disabled = false;
             submitBtn.textContent = 'Procesando...';
             setResult('Procesando el video, esto puede tardar algunos minutos.', 'info');
             startProgress();
+            currentAbortController = new AbortController();
 
             try {
                 const response = await fetch('/upload', {
                     method: 'POST',
-                    body: formData
+                    body: formData,
+                    signal: currentAbortController.signal
                 });
 
                 if (response.ok) {
@@ -548,12 +584,27 @@
                     setResult(`Error: ${message}`, 'error');
                 }
             } catch (error) {
-                setResult('No se pudo conectar con el servidor. Intenta de nuevo.', 'error');
+                if (error.name === 'AbortError') {
+                    setResult('Proceso cancelado. Puedes iniciar una nueva traducción.', 'info');
+                } else {
+                    setResult('No se pudo conectar con el servidor. Intenta de nuevo.', 'error');
+                }
             } finally {
+                currentAbortController = null;
                 stopProgress();
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Subir y traducir';
+                cancelBtn.hidden = true;
             }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            if (!currentAbortController) {
+                return;
+            }
+
+            cancelBtn.disabled = true;
+            currentAbortController.abort();
         });
 
         clearVideoBtn.addEventListener('click', clearSavedVideo);

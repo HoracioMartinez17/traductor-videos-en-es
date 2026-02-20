@@ -6,3 +6,6 @@ services:
     dockerfilePath: ./Dockerfile
     autoDeploy: true
     healthCheckPath: /health
+    envVars:
+      - key: WHISPER_MODEL
+        value: tiny.en

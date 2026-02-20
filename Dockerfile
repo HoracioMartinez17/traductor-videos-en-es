@@ -15,6 +15,9 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+# Pre-descargar modelo Whisper durante el build para evitar latencia en primer request
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('tiny.en', device='cpu', compute_type='int8')"
+
 EXPOSE 10000
 
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "10000"]
