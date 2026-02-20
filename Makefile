@@ -1,6 +1,7 @@
 PYTHON=.venv/bin/python
 UVICORN=.venv/bin/uvicorn
 API_URL?=https://traductor-videos-en-es.onrender.com
+API_URL_LOCAL?=http://127.0.0.1:5000
 WORKER_ID?=local-worker
 WORKER_PID_FILE=.worker.pid
 
@@ -9,7 +10,7 @@ include .env
 export
 endif
 
-.PHONY: dev run worker worker-render worker-start worker-stop worker-status
+.PHONY: dev run worker worker-render worker-local worker-start worker-start-local worker-start-render worker-stop worker-status worker-logs
 
 dev:
 	$(UVICORN) app:app --host 0.0.0.0 --port 5000 --reload
@@ -27,6 +28,9 @@ worker:
 worker-render:
 	@$(MAKE) worker API_URL=https://traductor-videos-en-es.onrender.com WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker-render
 
+worker-local:
+	@$(MAKE) worker API_URL=$(API_URL_LOCAL) WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker
+
 worker-start:
 	@if [ -z "$(WORKER_API_KEY)" ]; then \
 		echo "Falta WORKER_API_KEY. Defínelo en .env o ejecuta: make worker-start WORKER_API_KEY=tu_token"; \
@@ -37,7 +41,13 @@ worker-start:
 		exit 0; \
 	fi
 	@nohup $(PYTHON) worker.py --api-url $(API_URL) --api-key $(WORKER_API_KEY) --worker-id $(WORKER_ID) > worker.log 2>&1 & echo $$! > $(WORKER_PID_FILE)
-	@echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). Logs: worker.log"
+	@echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). API: $(API_URL). Logs: worker.log"
+
+worker-start-local:
+	@$(MAKE) worker-start API_URL=$(API_URL_LOCAL) WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker
+
+worker-start-render:
+	@$(MAKE) worker-start API_URL=https://traductor-videos-en-es.onrender.com WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker-render
 
 worker-stop:
 	@if [ ! -f "$(WORKER_PID_FILE)" ]; then \
@@ -58,3 +68,7 @@ worker-status:
 	else \
 		echo "Worker detenido"; \
 	fi
+
+worker-logs:
+	@touch worker.log
+	@tail -f worker.log

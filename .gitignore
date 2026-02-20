@@ -10,6 +10,7 @@ __pycache__/
 .DS_Store
 .env
 *.log
+.worker.pid
 
 # Base de datos y archivos de jobs
 jobs.db

@@ -119,6 +119,12 @@
             gap: 8px;
         }
 
+        .mode-warning {
+            font-size: 0.82rem;
+            color: #facc15;
+            margin: 0;
+        }
+
         .mode-option {
             flex: 1;
             width: auto;
@@ -405,18 +411,24 @@
         <form id="uploadForm" enctype="multipart/form-data">
             <div class="field">
                 <label for="fileInput">Archivo de video</label>
-                <input type="file" name="file" id="fileInput" accept="video/*" required>
+                <input type="file" name="file" id="fileInput" accept="video/*">
                 <div id="fileName" class="file-name">No has seleccionado ningún archivo.</div>
+            </div>
+            <div class="field">
+                <label for="videoUrlInput">O pega una URL de YouTube</label>
+                <input type="url" id="videoUrlInput" placeholder="https://www.youtube.com/watch?v=...">
+                <div class="file-name">Usa esta opción si no tienes un video local para probar.</div>
             </div>
             <div class="mode-toggle" id="modeToggle">
                 <div class="mode-toggle-label">
                     <strong>Modo de procesamiento</strong>
-                    <span id="modeHelp">Selecciona dónde procesar el video.</span>
+                    <span id="modeHelp">Selecciona cómo procesar el video.</span>
                 </div>
                 <div class="mode-options" role="group" aria-label="Modo de procesamiento">
-                    <button id="modeLocalBtn" class="mode-option" type="button">Local</button>
-                    <button id="modeCloudBtn" class="mode-option" type="button">Remoto</button>
+                    <button id="modeLocalBtn" class="mode-option" type="button">Remoto (PC)</button>
+                    <button id="modeCloudBtn" class="mode-option" type="button">Nube</button>
                 </div>
+                <p id="modeWarning" class="mode-warning" hidden>Si eliges Remoto (PC), debe haber un worker de PC encendido y el procesamiento puede tardar más.</p>
             </div>
             <div class="submit-actions">
                 <button id="submitBtn" type="submit">Subir y traducir</button>
@@ -452,6 +464,7 @@
         const result = document.getElementById('result');
         const submitBtn = document.getElementById('submitBtn');
         const cancelBtn = document.getElementById('cancelBtn');
+        const videoUrlInput = document.getElementById('videoUrlInput');
         const fileName = document.getElementById('fileName');
         const progressWrap = document.getElementById('progressWrap');
         const elapsedTime = document.getElementById('elapsedTime');
@@ -462,6 +475,7 @@
         const modeLocalBtn = document.getElementById('modeLocalBtn');
         const modeCloudBtn = document.getElementById('modeCloudBtn');
         const modeHelp = document.getElementById('modeHelp');
+        const modeWarning = document.getElementById('modeWarning');
         const modeToggle = document.getElementById('modeToggle');
         let translatedVideoUrl = null;
         let timerInterval = null;
@@ -488,8 +502,10 @@
 
             if (isCloud) {
                 modeHelp.textContent = 'Procesamiento en la nube.';
+                modeWarning.hidden = true;
             } else {
-                modeHelp.textContent = 'Procesamiento en este dispositivo.';
+                modeHelp.textContent = 'Procesamiento en un equipo externo.';
+                modeWarning.hidden = isLocalEnvironment();
             }
         }
 
@@ -617,12 +633,25 @@
             }
 
             if (!fileInput.files[0]) {
-                setResult('Selecciona un video antes de continuar.', 'error');
+                const providedUrl = videoUrlInput.value.trim();
+                if (!providedUrl) {
+                    setResult('Selecciona un archivo o pega una URL de YouTube para continuar.', 'error');
+                    return;
+                }
+            }
+
+            const hasFile = Boolean(fileInput.files[0]);
+            const providedUrl = videoUrlInput.value.trim();
+
+            if (!hasFile && !providedUrl) {
+                setResult('Selecciona un archivo o pega una URL de YouTube para continuar.', 'error');
                 return;
             }
 
             const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+            if (hasFile) {
+                formData.append('file', fileInput.files[0]);
+            }
 
             submitBtn.disabled = true;
             cancelBtn.hidden = false;
@@ -636,8 +665,9 @@
 
             try {
                 const useCloudMode = !isLocalEnvironment() && getProcessingMode() === 'cloud';
+                const isUrlFlow = !hasFile && Boolean(providedUrl);
 
-                if (!useCloudMode) {
+                if (!useCloudMode && hasFile) {
                     setResult('Procesando en local...', 'info');
                     startProgress('Procesando en local');
 
@@ -668,11 +698,18 @@
                 const processingTarget = getProcessingMode();
 
                 // Subir y encolar
-                const uploadResponse = await fetch(`/upload-async?target=${processingTarget}`, {
-                    method: 'POST',
-                    body: formData,
-                    signal: currentAbortController.signal
-                });
+                const uploadResponse = isUrlFlow
+                    ? await fetch(`/upload-from-url-async?target=${processingTarget}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ url: providedUrl }),
+                        signal: currentAbortController.signal
+                    })
+                    : await fetch(`/upload-async?target=${processingTarget}`, {
+                        method: 'POST',
+                        body: formData,
+                        signal: currentAbortController.signal
+                    });
 
                 if (!uploadResponse.ok) {
                     const error = await uploadResponse.json();
@@ -747,7 +784,11 @@
                             }
                         } else if (!fallbackRequested) {
                             if (processingTarget === 'pc') {
-                                setResult('Video en cola para procesamiento local.', 'info');
+                                if (pendingMs >= 15000) {
+                                    setResult('Video en cola local. Verifica que el worker esté conectado a http://127.0.0.1:5000.', 'info');
+                                } else {
+                                    setResult('Video en cola para procesamiento local.', 'info');
+                                }
                             } else {
                                 setResult('Video en cola para procesamiento remoto.', 'info');
                             }

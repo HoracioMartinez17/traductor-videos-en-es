@@ -59,6 +59,17 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_target ON jobs(target)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)")
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ip_limits (
+                ip TEXT PRIMARY KEY,
+                request_count INTEGER NOT NULL DEFAULT 0,
+                blocked INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+        """
+        )
         conn.commit()
 
 
@@ -196,3 +207,36 @@ def delete_job(job_id: str) -> None:
     with get_db() as conn:
         conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         conn.commit()
+
+
+def register_ip_request(ip: str, max_requests: int) -> tuple[bool, int]:
+    """Registra un request por IP. Retorna (permitido, total_requests)."""
+    now = datetime.utcnow().isoformat()
+
+    with get_db() as conn:
+        row = conn.execute("SELECT request_count, blocked FROM ip_limits WHERE ip = ?", (ip,)).fetchone()
+
+        if not row:
+            conn.execute(
+                "INSERT INTO ip_limits (ip, request_count, blocked, updated_at) VALUES (?, ?, ?, ?)",
+                (ip, 1, 0, now),
+            )
+            conn.commit()
+            return True, 1
+
+        current_count = int(row["request_count"])
+        is_blocked = int(row["blocked"]) == 1
+
+        if is_blocked:
+            return False, current_count
+
+        new_count = current_count + 1
+        should_block = 1 if new_count > max_requests else 0
+
+        conn.execute(
+            "UPDATE ip_limits SET request_count = ?, blocked = ?, updated_at = ? WHERE ip = ?",
+            (new_count, should_block, now, ip),
+        )
+        conn.commit()
+
+        return should_block == 0, new_count
