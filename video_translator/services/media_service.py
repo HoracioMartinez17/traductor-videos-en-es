@@ -1,4 +1,26 @@
+import json
 import subprocess
+
+
+def get_video_duration(video_path: str) -> float:
+    """Obtiene la duración del video en segundos usando ffprobe."""
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            video_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(result.stdout)
+    return float(data["format"]["duration"])
 
 
 def extract_audio(video_path: str, audio_path: str) -> None:

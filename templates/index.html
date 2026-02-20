@@ -399,6 +399,7 @@
         const STORE_NAME = 'translatedVideos';
         const VIDEO_KEY = 'latest';
         let currentAbortController = null;
+        let currentPolling = null;
 
         function setResult(message, type) {
             result.className = type;
@@ -412,10 +413,11 @@
             return `${minutes}:${seconds}`;
         }
 
-        function startProgress() {
+        function startProgress(message = 'Procesando traducción') {
             startTimeMs = Date.now();
             elapsedTime.textContent = '00:00';
             progressWrap.hidden = false;
+            progressWrap.querySelector('.progress-meta span:first-child').textContent = message;
             timerInterval = setInterval(() => {
                 elapsedTime.textContent = formatElapsed(Date.now() - startTimeMs);
             }, 250);
@@ -426,6 +428,60 @@
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
+            }
+        }
+
+        function stopPolling() {
+            if (currentPolling) {
+                clearInterval(currentPolling);
+                currentPolling = null;
+            }
+        }
+
+        async function pollJobStatus(jobId) {
+            try {
+                const response = await fetch(`/jobs/${jobId}`);
+                if (!response.ok) {
+                    throw new Error('Error al consultar estado del job');
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error en polling:', error);
+                return null;
+            }
+        }
+
+        async function downloadJobResult(jobId) {
+            try {
+                const response = await fetch(`/jobs/${jobId}/download`);
+                if (!response.ok) {
+                    throw new Error('Error al descargar resultado');
+                }
+
+                const blob = await response.blob();
+                return blob;
+            } catch (error) {
+                console.error('Error al descargar:', error);
+                throw error;
+            }
+        }
+
+        async function handleJobCompletion(jobId) {
+            try {
+                setResult('Descargando video traducido...', 'info');
+                const blob = await downloadJobResult(jobId);
+                
+                clearVideoPreview();
+                translatedVideoUrl = window.URL.createObjectURL(blob);
+                translatedVideo.src = translatedVideoUrl;
+                downloadLink.href = translatedVideoUrl;
+                videoPanel.classList.add('active');
+                await saveTranslatedVideo(blob);
+                setResult('¡Video traducido correctamente! Ya puedes reproducirlo o descargarlo.', 'success');
+            } catch (error) {
+                setResult('Error al obtener el video traducido.', 'error');
             }
         }
 
@@ -542,7 +598,7 @@
         form.addEventListener('submit', async function(event) {
             event.preventDefault();
 
-            if (currentAbortController) {
+            if (currentAbortController || currentPolling) {
                 return;
             }
 
@@ -557,54 +613,92 @@
             submitBtn.disabled = true;
             cancelBtn.hidden = false;
             cancelBtn.disabled = false;
-            submitBtn.textContent = 'Procesando...';
-            setResult('Procesando el video, esto puede tardar algunos minutos.', 'info');
-            startProgress();
+            submitBtn.textContent = 'Enviando...';
+            setResult('Subiendo video al servidor...', 'info');
             currentAbortController = new AbortController();
+            startProgress('Subiendo video');
 
             try {
-                const response = await fetch('/upload', {
+                // Subir y encolar
+                const uploadResponse = await fetch('/upload-async', {
                     method: 'POST',
                     body: formData,
                     signal: currentAbortController.signal
                 });
 
-                if (response.ok) {
-                    const blob = await response.blob();
-                    clearVideoPreview();
-                    translatedVideoUrl = window.URL.createObjectURL(blob);
-                    translatedVideo.src = translatedVideoUrl;
-                    downloadLink.href = translatedVideoUrl;
-                    videoPanel.classList.add('active');
-                    await saveTranslatedVideo(blob);
-                    setResult('¡Video traducido correctamente! Ya puedes reproducirlo o descargarlo.', 'success');
-                } else {
-                    const error = await response.json();
-                    const message = error.detail || error.error || 'Se produjo un error en el servidor.';
+                if (!uploadResponse.ok) {
+                    const error = await uploadResponse.json();
+                    const message = error.detail || error.error || 'Error al subir el video.';
                     setResult(`Error: ${message}`, 'error');
+                    return;
                 }
+
+                const { job_id } = await uploadResponse.json();
+                currentAbortController = null;  // Ya no podemos cancelar el upload
+
+                setResult('Video encolado. Esperando procesamiento en tu PC...', 'info');
+                startProgress('En cola / procesando');
+
+                // Iniciar polling
+                currentPolling = setInterval(async () => {
+                    const jobStatus = await pollJobStatus(job_id);
+                    
+                    if (!jobStatus) {
+                        return;
+                    }
+
+                    if (jobStatus.status === 'completed') {
+                        stopPolling();
+                        stopProgress();
+                        await handleJobCompletion(job_id);
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Subir y traducir';
+                        cancelBtn.hidden = true;
+                    } else if (jobStatus.status === 'failed') {
+                        stopPolling();
+                        stopProgress();
+                        const errorMsg = jobStatus.error_message || 'Error desconocido';
+                        setResult(`Error al procesar: ${errorMsg}`, 'error');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Subir y traducir';
+                        cancelBtn.hidden = true;
+                    } else if (jobStatus.status === 'processing') {
+                        startProgress('Tu PC está procesando');
+                    }
+                }, 2000);  // Poll cada 2 segundos
+
             } catch (error) {
                 if (error.name === 'AbortError') {
-                    setResult('Proceso cancelado. Puedes iniciar una nueva traducción.', 'info');
+                    setResult('Subida cancelada. Puedes iniciar una nueva traducción.', 'info');
                 } else {
                     setResult('No se pudo conectar con el servidor. Intenta de nuevo.', 'error');
                 }
             } finally {
-                currentAbortController = null;
-                stopProgress();
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Subir y traducir';
-                cancelBtn.hidden = true;
+                if (currentAbortController) {
+                    currentAbortController = null;
+                }
+                if (!currentPolling) {
+                    stopProgress();
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Subir y traducir';
+                    cancelBtn.hidden = true;
+                }
             }
         });
 
         cancelBtn.addEventListener('click', () => {
-            if (!currentAbortController) {
-                return;
+            if (currentAbortController) {
+                cancelBtn.disabled = true;
+                currentAbortController.abort();
+            } else if (currentPolling) {
+                // Cancelar polling (el job seguirá procesándose en el worker)
+                stopPolling();
+                stopProgress();
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Subir y traducir';
+                cancelBtn.hidden = true;
+                setResult('Polling cancelado. El video seguirá procesándose en segundo plano.', 'info');
             }
-
-            cancelBtn.disabled = true;
-            currentAbortController.abort();
         });
 
         clearVideoBtn.addEventListener('click', clearSavedVideo);

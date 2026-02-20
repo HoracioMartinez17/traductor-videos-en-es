@@ -11,6 +11,11 @@ __pycache__/
 .env
 *.log
 
+# Base de datos y archivos de jobs
+jobs.db
+jobs.db-*
+jobs_data/
+
 # Documentación(solo local)
 
 *documentacion*.md
