@@ -1,0 +1,20 @@
+export const elements = {
+    form: document.getElementById('uploadForm'),
+    fileInput: document.getElementById('fileInput'),
+    result: document.getElementById('result'),
+    submitBtn: document.getElementById('submitBtn'),
+    cancelBtn: document.getElementById('cancelBtn'),
+    videoUrlInput: document.getElementById('videoUrlInput'),
+    fileName: document.getElementById('fileName'),
+    progressWrap: document.getElementById('progressWrap'),
+    elapsedTime: document.getElementById('elapsedTime'),
+    videoPanel: document.getElementById('videoPanel'),
+    translatedVideo: document.getElementById('translatedVideo'),
+    downloadLink: document.getElementById('downloadLink'),
+    clearVideoBtn: document.getElementById('clearVideoBtn'),
+    modeLocalBtn: document.getElementById('modeLocalBtn'),
+    modeCloudBtn: document.getElementById('modeCloudBtn'),
+    modeHelp: document.getElementById('modeHelp'),
+    modeWarning: document.getElementById('modeWarning'),
+    modeToggle: document.getElementById('modeToggle')
+};

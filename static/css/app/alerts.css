@@ -1,0 +1,15 @@
+.alert {
+    max-width: 760px;
+    margin: 0 0 24px 0;
+    display: block;
+    text-align: left;
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-size: 1rem;
+}
+
+.alert-warning {
+    background: #222222;
+    color: #facc15;
+    border: 1px solid #facc15;
+}

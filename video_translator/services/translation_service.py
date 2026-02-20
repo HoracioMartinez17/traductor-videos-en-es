@@ -1,6 +1,6 @@
 from deep_translator import GoogleTranslator
 
-from video_translator.utils.text_utils import split_text
+from video_translator.utils.text import split_text
 
 
 def translate_text(text: str) -> str:

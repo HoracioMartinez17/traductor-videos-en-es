@@ -1,0 +1,139 @@
+input[type="file"] {
+    width: 100%;
+    border: 1px dashed #3f3f46;
+    border-radius: 10px;
+    padding: 12px;
+    background: #0f0f10;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.file-name {
+    min-height: 20px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.submit-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.mode-toggle {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #0f0f10;
+}
+
+.mode-toggle-label {
+    display: grid;
+    gap: 2px;
+}
+
+.mode-toggle-label strong {
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.mode-toggle-label span {
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.mode-options {
+    display: flex;
+    gap: 8px;
+}
+
+.mode-warning {
+    font-size: 0.82rem;
+    color: #facc15;
+    margin: 0;
+}
+
+.mode-option {
+    flex: 1;
+    width: auto;
+    border: 1px solid #3f3f46;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: #111111;
+    color: #d4d4d8;
+    cursor: pointer;
+}
+
+.mode-option.active {
+    border-color: #e5e5e5;
+    background: #f5f5f5;
+    color: #000000;
+    font-weight: 700;
+}
+
+button {
+    width: 100%;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.98rem;
+    font-weight: 700;
+    background: var(--primary);
+    color: var(--primary-text);
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.06s ease;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary {
+    border-color: #3f3f46;
+    background: #111111;
+    color: #fafafa;
+}
+
+.btn-secondary:hover {
+    border-color: #737373;
+}
+
+#result {
+    margin-top: 16px;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    min-height: 44px;
+    display: none;
+    border: 1px solid var(--border);
+    background: #0f0f10;
+}
+
+#result.success {
+    display: block;
+    color: var(--success);
+}
+
+#result.error {
+    display: block;
+    color: var(--error);
+}
+
+#result.info {
+    display: block;
+    color: #d4d4d8;
+}

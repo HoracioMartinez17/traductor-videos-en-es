@@ -9,10 +9,7 @@ from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
 from video_translator.models.job import JobStatus, delete_job, dequeue_next_pending_job, get_job, update_job_status
-from video_translator.services.media_service import extract_audio, replace_audio
-from video_translator.services.transcription_service import transcribe_audio
-from video_translator.services.translation_service import translate_text
-from video_translator.services.tts_service import generate_audio
+from video_translator.utils.jobs_controller import safe_remove, cleanup_job_files, process_job_on_render
 
 jobs_router = APIRouter()
 
@@ -24,71 +21,11 @@ JOBS_DIR = Path(__file__).parent.parent.parent / "jobs_data"
 JOBS_DIR.mkdir(exist_ok=True)
 
 
-def _safe_remove(path: Optional[str]) -> None:
-    if path and os.path.exists(path):
-        os.remove(path)
-
-
-def _cleanup_job_files(job_id: str, output_path: Optional[str], input_path: Optional[str]) -> None:
-    """Elimina archivos y metadatos del job tras entregar resultado."""
-    _safe_remove(output_path)
-    _safe_remove(input_path)
-    delete_job(job_id)
-
-
 def verify_worker_token(x_api_key: str = Header(...)):
     """Verifica que el worker tenga un token válido."""
     if x_api_key != WORKER_API_KEY:
         raise HTTPException(status_code=403, detail="Token de worker inválido")
     return x_api_key
-
-
-async def _process_job_on_render(job_id: str):
-    """Procesa un job en la CPU del servidor como fallback cuando no hay worker externo."""
-    worker_id = "render-fallback"
-    job = get_job(job_id)
-
-    if not job:
-        return
-
-    input_path = job.get("input_path")
-    if not input_path or not os.path.exists(input_path):
-        update_job_status(
-            job_id,
-            JobStatus.FAILED,
-            error_message="Archivo de entrada no encontrado para fallback",
-            worker_id=worker_id,
-        )
-        return
-
-    output_path = JOBS_DIR / f"{job_id}_output.mp4"
-
-    with tempfile.NamedTemporaryFile(suffix=".aac", delete=False) as temp_audio, tempfile.NamedTemporaryFile(
-        suffix=".mp3", delete=False
-    ) as temp_output_audio:
-        try:
-            extract_audio(input_path, temp_audio.name)
-            transcribed_text = transcribe_audio(temp_audio.name)
-            translated_text = translate_text(transcribed_text)
-            await generate_audio(translated_text, temp_output_audio.name)
-            replace_audio(input_path, temp_output_audio.name, str(output_path))
-            update_job_status(job_id, JobStatus.COMPLETED, output_path=str(output_path), worker_id=worker_id)
-            _safe_remove(input_path)
-        except Exception as error:
-            update_job_status(
-                job_id,
-                JobStatus.FAILED,
-                error_message=f"Fallback Render falló: {error}",
-                worker_id=worker_id,
-            )
-            if output_path.exists():
-                output_path.unlink()
-            _safe_remove(input_path)
-        finally:
-            if os.path.exists(temp_audio.name):
-                os.remove(temp_audio.name)
-            if os.path.exists(temp_output_audio.name):
-                os.remove(temp_output_audio.name)
 
 
 @jobs_router.get("/jobs/next", dependencies=[Depends(verify_worker_token)])
@@ -142,7 +79,7 @@ async def download_job_result(job_id: str):
         output_path,
         media_type="video/mp4",
         filename="translated_video.mp4",
-        background=BackgroundTask(_cleanup_job_files, job_id, output_path, input_path),
+        background=BackgroundTask(cleanup_job_files, job_id, output_path, input_path),
     )
 
 
@@ -203,7 +140,7 @@ async def upload_job_result(job_id: str, file: UploadFile):
 
         # Actualizar job como completado
         update_job_status(job_id, JobStatus.COMPLETED, output_path=str(output_path))
-        _safe_remove(job.get("input_path"))
+        safe_remove(job.get("input_path"))
         
         return {"status": "uploaded", "output_path": str(output_path)}
     
@@ -241,7 +178,7 @@ async def process_job_fallback(job_id: str):
             "worker_id": current_job.get("worker_id") if current_job else None,
         }
 
-    asyncio.create_task(_process_job_on_render(job_id))
+    asyncio.create_task(process_job_on_render(job_id))
     return {"status": "fallback_started", "worker_id": "render-fallback"}
 
 
@@ -252,7 +189,7 @@ async def discard_job(job_id: str):
     if not job:
         return {"status": "not_found"}
 
-    _safe_remove(job.get("input_path"))
-    _safe_remove(job.get("output_path"))
+    safe_remove(job.get("input_path"))
+    safe_remove(job.get("output_path"))
     delete_job(job_id)
     return {"status": "discarded"}

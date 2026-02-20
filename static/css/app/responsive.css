@@ -1,0 +1,82 @@
+@media (max-width: 640px) {
+    body {
+        padding: 12px;
+        align-items: start;
+    }
+
+    .card {
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .subtitle {
+        font-size: 0.92rem;
+        margin-bottom: 16px;
+    }
+
+    .field {
+        margin-bottom: 14px;
+    }
+
+    input[type="file"] {
+        padding: 10px;
+        font-size: 0.92rem;
+    }
+
+    button {
+        padding: 11px 14px;
+        font-size: 0.95rem;
+    }
+
+    .submit-actions {
+        flex-wrap: wrap;
+    }
+
+    .submit-actions button {
+        flex: 1 1 100%;
+    }
+
+    #result {
+        font-size: 0.9rem;
+        padding: 10px 12px;
+        min-height: 40px;
+    }
+
+    .progress-meta {
+        font-size: 0.8rem;
+    }
+
+    .video-panel {
+        padding: 10px;
+        border-radius: 10px;
+    }
+
+    .video-title {
+        font-size: 0.88rem;
+    }
+
+    #translatedVideo {
+        height: 300px;
+    }
+
+    .actions {
+        justify-content: stretch;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .action-btn {
+        flex: 1 1 100%;
+        width: 100%;
+        text-align: center;
+    }
+
+    .action-btn--small {
+        font-size: 0.84rem;
+        padding: 8px 10px;
+    }
+}

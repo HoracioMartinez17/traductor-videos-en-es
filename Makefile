@@ -40,8 +40,8 @@ worker-start:
 		echo "Worker ya está corriendo con PID $$(cat $(WORKER_PID_FILE))"; \
 		exit 0; \
 	fi
-	@nohup $(PYTHON) worker.py --api-url $(API_URL) --api-key $(WORKER_API_KEY) --worker-id $(WORKER_ID) > worker.log 2>&1 & echo $$! > $(WORKER_PID_FILE)
-	@echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). API: $(API_URL). Logs: worker.log"
+	@nohup $(PYTHON) worker.py --api-url $(API_URL) --api-key $(WORKER_API_KEY) --worker-id $(WORKER_ID) > /dev/null 2>&1 & echo $$! > $(WORKER_PID_FILE)
+	@echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). API: $(API_URL). Logs desactivados."
 
 worker-start-local:
 	@$(MAKE) worker-start API_URL=$(API_URL_LOCAL) WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker
@@ -70,5 +70,5 @@ worker-status:
 	fi
 
 worker-logs:
-	@touch worker.log
-	@tail -f worker.log
+	@echo "worker.log está desactivado para evitar crecimiento indefinido."
+	@echo "Para ver actividad en tiempo real, ejecuta el worker en foreground con: make worker-render"
