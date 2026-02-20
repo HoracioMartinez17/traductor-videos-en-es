@@ -14,6 +14,7 @@ from video_translator.utils.worker import (
     download_file_from_api,
     download_youtube_video,
     get_next_job,
+    is_supported_youtube_url,
     mark_failed,
     process_and_translate,
     upload_file_to_api,
@@ -69,7 +70,7 @@ class Worker:
             local_output = os.path.join(tmpdir, "output.mp4")
 
             try:
-                if input_path and input_path.startswith("http") and "youtube" in input_path:
+                if input_path and is_supported_youtube_url(input_path):
                     await download_youtube_video(input_path, local_input)
                 else:
                     await self.download_input(job_id, local_input)

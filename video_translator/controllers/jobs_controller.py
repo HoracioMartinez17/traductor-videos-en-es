@@ -111,7 +111,11 @@ async def claim_job_endpoint(job_id: str, worker_id: str):
 
 @jobs_router.post("/jobs/{job_id}/complete", dependencies=[Depends(verify_worker_token)])
 async def complete_job_endpoint(
-    job_id: str, output_path: str, worker_id: str, success: bool = True, error_message: Optional[str] = None
+    job_id: str,
+    worker_id: str,
+    output_path: Optional[str] = None,
+    success: bool = True,
+    error_message: Optional[str] = None,
 ):
     """Permite a un worker marcar un job como completado o fallido."""
     status = JobStatus.COMPLETED if success else JobStatus.FAILED
