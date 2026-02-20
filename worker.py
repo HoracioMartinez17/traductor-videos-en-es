@@ -46,7 +46,7 @@ class Worker:
     async def get_next_job(self):
         """Obtiene el siguiente job pendiente."""
         try:
-            response = await self.client.get(f"{self.api_url}/jobs/next")
+            response = await self.client.get(f"{self.api_url}/jobs/next", params={"worker_id": self.worker_id})
             response.raise_for_status()
             data = response.json()
             return data.get("job")
@@ -147,11 +147,6 @@ class Worker:
         job_id = job["id"]
 
         print(f"\n🚀 Procesando job {job_id}")
-
-        # Reclamar el job
-        if not await self.claim_job(job_id):
-            print("❌ No se pudo reclamar el job (ya fue tomado por otro worker)")
-            return
 
         # Crear directorio temporal para este job
         with tempfile.TemporaryDirectory() as tmpdir:

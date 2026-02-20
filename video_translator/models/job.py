@@ -89,6 +89,49 @@ def get_next_pending_job() -> Optional[dict]:
         return dict(row) if row else None
 
 
+def dequeue_next_pending_job(worker_id: str) -> Optional[dict]:
+    """Obtiene y reclama atómicamente el siguiente job pendiente para un worker."""
+    now = datetime.utcnow().isoformat()
+
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+
+        row = conn.execute(
+            """
+            SELECT id
+            FROM jobs
+            WHERE status = ?
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            (JobStatus.PENDING,),
+        ).fetchone()
+
+        if not row:
+            conn.rollback()
+            return None
+
+        job_id = row["id"]
+
+        cursor = conn.execute(
+            """
+            UPDATE jobs
+            SET status = ?, worker_id = ?, updated_at = ?
+            WHERE id = ? AND status = ?
+            """,
+            (JobStatus.PROCESSING, worker_id, now, job_id, JobStatus.PENDING),
+        )
+
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return None
+
+        job_row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        conn.commit()
+
+        return dict(job_row) if job_row else None
+
+
 def update_job_status(
     job_id: str,
     status: JobStatus,

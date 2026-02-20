@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-from video_translator.models.job import JobStatus, get_job, get_next_pending_job, update_job_status
+from video_translator.models.job import JobStatus, dequeue_next_pending_job, get_job, update_job_status
 
 jobs_router = APIRouter()
 
@@ -25,9 +25,9 @@ def verify_worker_token(x_api_key: str = Header(...)):
 
 
 @jobs_router.get("/jobs/next", dependencies=[Depends(verify_worker_token)])
-async def get_next_job():
-    """Endpoint para que el worker obtenga el siguiente job pendiente."""
-    job = get_next_pending_job()
+async def get_next_job(worker_id: str):
+    """Endpoint para que el worker obtenga y reclame el siguiente job pendiente."""
+    job = dequeue_next_pending_job(worker_id)
     if not job:
         return {"job": None}
 
