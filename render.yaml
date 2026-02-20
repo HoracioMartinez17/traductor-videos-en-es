@@ -11,21 +11,3 @@ services:
         sync: false
       - key: WHISPER_MODEL
         value: tiny.en
-  - type: worker
-    name: traductor-videos-worker
-    runtime: docker
-    plan: starter
-    dockerfilePath: ./Dockerfile
-    autoDeploy: true
-    startCommand: python worker.py --api-url https://traductor-videos-web.onrender.com --api-key $WORKER_API_KEY
-    envVars:
-      - key: WORKER_API_KEY
-        fromService:
-          type: web
-          name: traductor-videos-web
-          envVarKey: WORKER_API_KEY
-      - key: WHISPER_MODEL
-        fromService:
-          type: web
-          name: traductor-videos-web
-          envVarKey: WHISPER_MODEL

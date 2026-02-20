@@ -89,6 +89,40 @@
             gap: 8px;
         }
 
+        .mode-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #0f0f10;
+        }
+
+        .mode-toggle-label {
+            display: grid;
+            gap: 2px;
+        }
+
+        .mode-toggle-label strong {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .mode-toggle-label span {
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .mode-toggle input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #ffffff;
+            cursor: pointer;
+        }
+
         button {
             width: 100%;
             border: 1px solid #e5e5e5;
@@ -358,6 +392,13 @@
                 <input type="file" name="file" id="fileInput" accept="video/*" required>
                 <div id="fileName" class="file-name">No has seleccionado ningún archivo.</div>
             </div>
+            <div class="mode-toggle">
+                <label class="mode-toggle-label" for="cloudModeCheckbox">
+                    <strong id="modeTitle">Procesamiento remoto</strong>
+                    <span id="modeHelp">Procesamiento en la nube.</span>
+                </label>
+                <input id="cloudModeCheckbox" type="checkbox">
+            </div>
             <div class="submit-actions">
                 <button id="submitBtn" type="submit">Subir y traducir</button>
                 <button id="cancelBtn" class="btn-secondary" type="button" hidden>Cancelar</button>
@@ -399,6 +440,10 @@
         const translatedVideo = document.getElementById('translatedVideo');
         const downloadLink = document.getElementById('downloadLink');
         const clearVideoBtn = document.getElementById('clearVideoBtn');
+        const cloudModeCheckbox = document.getElementById('cloudModeCheckbox');
+        const modeTitle = document.getElementById('modeTitle');
+        const modeHelp = document.getElementById('modeHelp');
+        const modeToggle = document.querySelector('.mode-toggle');
         let translatedVideoUrl = null;
         let timerInterval = null;
         let startTimeMs = 0;
@@ -413,6 +458,20 @@
 
         function isLocalEnvironment() {
             return LOCAL_HOSTNAMES.includes(window.location.hostname);
+        }
+
+        function updateModeUI() {
+            if (cloudModeCheckbox.checked) {
+                modeTitle.textContent = 'Procesamiento remoto';
+                modeHelp.textContent = 'Procesamiento en la nube.';
+            } else {
+                modeTitle.textContent = 'Procesamiento local';
+                modeHelp.textContent = 'Procesamiento en este dispositivo.';
+            }
+        }
+
+        function getProcessingMode() {
+            return cloudModeCheckbox.checked ? 'cloud' : 'pc';
         }
 
         function setResult(message, type) {
@@ -553,8 +612,10 @@
             startProgress('Subiendo video');
 
             try {
-                if (isLocalEnvironment()) {
-                    setResult('Procesando en local con tu CPU...', 'info');
+                const useCloudMode = !isLocalEnvironment() && getProcessingMode() === 'cloud';
+
+                if (!useCloudMode) {
+                    setResult('Procesando en local...', 'info');
                     startProgress('Procesando en local');
 
                     const localResponse = await fetch('/upload', {
@@ -565,7 +626,7 @@
 
                     if (!localResponse.ok) {
                         const error = await localResponse.json();
-                        const message = error.detail || error.error || 'Error al procesar el video en local.';
+                        const message = error.detail || error.error || 'Error al procesar el video.';
                         setResult(`Error: ${message}`, 'error');
                         return;
                     }
@@ -577,12 +638,14 @@
                     downloadLink.href = translatedVideoUrl;
                     videoPanel.classList.add('active');
                     currentJobId = null;
-                    setResult('¡Video traducido en local correctamente! Si cierras esta página sin descargarlo, se perderá.', 'success');
+                    setResult('¡Video traducido correctamente! Si cierras esta página sin descargarlo, se perderá.', 'success');
                     return;
                 }
 
+                const processingTarget = getProcessingMode();
+
                 // Subir y encolar
-                const uploadResponse = await fetch('/upload-async', {
+                const uploadResponse = await fetch(`/upload-async?target=${processingTarget}`, {
                     method: 'POST',
                     body: formData,
                     signal: currentAbortController.signal
@@ -637,11 +700,11 @@
                     } else if (jobStatus.status === 'processing') {
                         startProgress(
                             jobStatus.worker_id === 'render-fallback'
-                                ? 'Procesando en servidor (Render CPU)'
-                                : 'Procesando con worker dedicado'
+                                ? 'Procesando en remoto'
+                                : 'Procesando en remoto'
                         );
                         if (jobStatus.worker_id === 'render-fallback') {
-                            setResult('Procesando en CPU de Render. Puede tardar más por menor potencia disponible.', 'info');
+                            setResult('Procesando en remoto. Este paso puede tardar unos minutos.', 'info');
                         }
                     } else if (jobStatus.status === 'pending') {
                         if (!pendingSinceMs) {
@@ -649,10 +712,10 @@
                         }
 
                         const pendingMs = Date.now() - pendingSinceMs;
-                        if (!fallbackRequested && pendingMs >= FALLBACK_TRIGGER_MS) {
+                        if (!fallbackRequested && processingTarget === 'cloud' && pendingMs >= FALLBACK_TRIGGER_MS) {
                             fallbackRequested = true;
-                            setResult('No hay worker externo activo. Activando procesamiento en CPU de Render (más lento)...', 'info');
-                            startProgress('Activando fallback en servidor');
+                            setResult('Inicializando procesamiento remoto...', 'info');
+                            startProgress('Inicializando procesamiento remoto');
                             try {
                                 await fetch(`/jobs/${job_id}/process-fallback`, { method: 'POST' });
                             } catch (_error) {
@@ -660,7 +723,11 @@
                                 fallbackRequested = false;
                             }
                         } else if (!fallbackRequested) {
-                            setResult('Video en cola. Si no hay worker activo, se usará CPU de Render (más lento).', 'info');
+                            if (processingTarget === 'pc') {
+                                setResult('Video en cola para procesamiento local.', 'info');
+                            } else {
+                                setResult('Video en cola para procesamiento remoto.', 'info');
+                            }
                         }
                     }
                 }, 2000);  // Poll cada 2 segundos
@@ -701,6 +768,16 @@
 
         clearVideoBtn.addEventListener('click', clearSavedVideo);
 
+        if (isLocalEnvironment()) {
+            cloudModeCheckbox.checked = false;
+            cloudModeCheckbox.disabled = true;
+            modeToggle.hidden = true;
+        } else {
+            cloudModeCheckbox.checked = true;
+        }
+        updateModeUI();
+        cloudModeCheckbox.addEventListener('change', updateModeUI);
+
         downloadLink.addEventListener('click', () => {
             wasDownloaded = true;
             if (currentJobId) {
@@ -709,18 +786,11 @@
             }
         });
 
-        window.addEventListener('beforeunload', (event) => {
-            const hasUndownloadedVideo = Boolean(translatedVideoUrl) && !wasDownloaded;
-
-            if (hasUndownloadedVideo || currentPolling || currentAbortController) {
-                if (currentJobId) {
-                    const blob = new Blob([], { type: 'application/octet-stream' });
-                    navigator.sendBeacon(`/jobs/${currentJobId}/discard`, blob);
-                    currentJobId = null;
-                }
-
-                event.preventDefault();
-                event.returnValue = '';
+        window.addEventListener('beforeunload', () => {
+            if (currentJobId) {
+                const blob = new Blob([], { type: 'application/octet-stream' });
+                navigator.sendBeacon(`/jobs/${currentJobId}/discard`, blob);
+                currentJobId = null;
             }
         });
     </script>

@@ -14,6 +14,12 @@ class JobStatus(str, Enum):
     FAILED = "failed"
 
 
+class JobTarget(str, Enum):
+    CLOUD = "cloud"
+    PC = "pc"
+    ANY = "any"
+
+
 DB_PATH = Path(__file__).parent.parent.parent / "jobs.db"
 
 
@@ -35,6 +41,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS jobs (
                 id TEXT PRIMARY KEY,
                 status TEXT NOT NULL,
+                target TEXT NOT NULL DEFAULT 'any',
                 input_path TEXT NOT NULL,
                 output_path TEXT,
                 worker_id TEXT,
@@ -44,12 +51,18 @@ def init_db():
             )
         """
         )
+
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+        if "target" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN target TEXT NOT NULL DEFAULT 'any'")
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON jobs(status)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_target ON jobs(target)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON jobs(created_at)")
         conn.commit()
 
 
-def create_job(input_path: str) -> str:
+def create_job(input_path: str, target: JobTarget = JobTarget.ANY) -> str:
     """Crea un nuevo job y retorna su ID."""
     job_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -57,10 +70,10 @@ def create_job(input_path: str) -> str:
     with get_db() as conn:
         conn.execute(
             """
-            INSERT INTO jobs (id, status, input_path, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO jobs (id, status, target, input_path, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (job_id, JobStatus.PENDING, input_path, now, now),
+            (job_id, JobStatus.PENDING, target, input_path, now, now),
         )
         conn.commit()
 
@@ -93,6 +106,13 @@ def dequeue_next_pending_job(worker_id: str) -> Optional[dict]:
     """Obtiene y reclama atómicamente el siguiente job pendiente para un worker."""
     now = datetime.utcnow().isoformat()
 
+    if worker_id == "render-worker":
+        allowed_targets = (JobTarget.CLOUD, JobTarget.ANY)
+    elif worker_id.startswith("local-worker"):
+        allowed_targets = (JobTarget.PC, JobTarget.ANY)
+    else:
+        allowed_targets = (JobTarget.ANY, JobTarget.CLOUD, JobTarget.PC)
+
     with get_db() as conn:
         conn.execute("BEGIN IMMEDIATE")
 
@@ -100,11 +120,11 @@ def dequeue_next_pending_job(worker_id: str) -> Optional[dict]:
             """
             SELECT id
             FROM jobs
-            WHERE status = ?
+            WHERE status = ? AND target IN (?, ?)
             ORDER BY created_at ASC
             LIMIT 1
             """,
-            (JobStatus.PENDING,),
+            (JobStatus.PENDING, allowed_targets[0], allowed_targets[1]),
         ).fetchone()
 
         if not row:

@@ -228,6 +228,9 @@ async def process_job_fallback(job_id: str):
     if job["status"] == JobStatus.FAILED:
         raise HTTPException(status_code=400, detail="El job está en estado failed")
 
+    if job.get("target") == "pc":
+        raise HTTPException(status_code=400, detail="Este job está marcado para procesamiento en PC local")
+
     if job["status"] == JobStatus.PROCESSING:
         return {"status": "already_processing", "worker_id": job.get("worker_id")}
 

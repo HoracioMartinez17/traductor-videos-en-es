@@ -4,11 +4,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 
-from video_translator.models.job import create_job
+from video_translator.models.job import JobTarget, create_job
 from video_translator.services.media_service import extract_audio, get_video_duration, replace_audio
 from video_translator.services.transcription_service import transcribe_audio
 from video_translator.services.translation_service import translate_text
@@ -94,7 +94,7 @@ async def upload_video(file: UploadFile):
 
 
 @upload_router.post("/upload-async")
-async def upload_video_async(file: UploadFile):
+async def upload_video_async(file: UploadFile, target: str = Query("cloud")):
     """
     Sube un video y lo encola para procesamiento asíncrono.
     Retorna un job_id para consultar el estado.
@@ -141,8 +141,12 @@ async def upload_video_async(file: UploadFile):
             _safe_remove(temp_path)
             raise HTTPException(status_code=400, detail="No se pudo leer la duración del video")
 
+        if target not in (JobTarget.CLOUD, JobTarget.PC):
+            _safe_remove(temp_path)
+            raise HTTPException(status_code=400, detail="Target inválido. Usa 'cloud' o 'pc'.")
+
         # Crear job en DB
-        job_id = create_job(temp_path)
+        job_id = create_job(temp_path, JobTarget(target))
         
         # Mover a directorio de jobs con el ID
         saved_path = JOBS_DIR / f"{job_id}_input.mp4"
@@ -159,7 +163,7 @@ async def upload_video_async(file: UploadFile):
                 conn.execute("UPDATE jobs SET input_path = ? WHERE id = ?", (str(saved_path), job_id))
                 conn.commit()
 
-        return {"job_id": job_id, "status": "queued"}
+        return {"job_id": job_id, "status": "queued", "target": target}
 
     except HTTPException:
         raise
