@@ -11,8 +11,7 @@ __pycache__/
 .env
 *.log
 
-# Documentación de curso/clase (solo local)
-MINI_CURSO.md
-CLASE_PRACTICA_LINEA_A_LINEA.md
-*CURSO*.md
-*CLASE*.md
+# Documentación(solo local)
+
+*documentacion*.md
+
