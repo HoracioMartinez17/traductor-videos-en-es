@@ -12,6 +12,8 @@ from video_translator.services.translation_service import translate_text
 from video_translator.services.tts_service import generate_audio
 
 upload_router = APIRouter()
+UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
+MAX_UPLOAD_SIZE = 300 * 1024 * 1024  # 300 MB
 
 
 def _safe_remove(path: str) -> None:
@@ -25,10 +27,21 @@ async def upload_video(file: UploadFile):
         raise HTTPException(status_code=400, detail="No selected file")
 
     with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_video:
-        content = await file.read()
-        if not content:
+        total_bytes = 0
+
+        while True:
+            chunk = await file.read(UPLOAD_CHUNK_SIZE)
+            if not chunk:
+                break
+
+            total_bytes += len(chunk)
+            if total_bytes > MAX_UPLOAD_SIZE:
+                raise HTTPException(status_code=413, detail="El archivo es demasiado grande.")
+
+            temp_video.write(chunk)
+
+        if total_bytes == 0:
             raise HTTPException(status_code=400, detail="No file part")
-        temp_video.write(content)
 
     output_video = f"{temp_video.name}_translated.mp4"
 

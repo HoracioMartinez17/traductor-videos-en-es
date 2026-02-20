@@ -5,7 +5,7 @@ from faster_whisper import WhisperModel
 
 @lru_cache(maxsize=1)
 def _get_whisper_model():
-    return WhisperModel("small", device="cpu", compute_type="int8")
+    return WhisperModel("base", device="cpu", compute_type="int8")
 
 
 def transcribe_audio(audio_path: str) -> str:
