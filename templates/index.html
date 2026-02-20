@@ -400,6 +400,9 @@
         const VIDEO_KEY = 'latest';
         let currentAbortController = null;
         let currentPolling = null;
+        let pendingSinceMs = 0;
+        let fallbackRequested = false;
+        const FALLBACK_TRIGGER_MS = 20000;
 
         function setResult(message, type) {
             result.className = type;
@@ -616,6 +619,8 @@
             submitBtn.textContent = 'Enviando...';
             setResult('Subiendo video al servidor...', 'info');
             currentAbortController = new AbortController();
+            fallbackRequested = false;
+            pendingSinceMs = 0;
             startProgress('Subiendo video');
 
             try {
@@ -636,8 +641,9 @@
                 const { job_id } = await uploadResponse.json();
                 currentAbortController = null;  // Ya no podemos cancelar el upload
 
-                setResult('Video encolado. Esperando procesamiento en PC...', 'info');
+                setResult('Video encolado. Iniciando procesamiento...', 'info');
                 startProgress('En cola / procesando');
+                pendingSinceMs = Date.now();
 
                 // Iniciar polling
                 currentPolling = setInterval(async () => {
@@ -650,6 +656,8 @@
                     if (jobStatus.status === 'completed') {
                         stopPolling();
                         stopProgress();
+                        fallbackRequested = false;
+                        pendingSinceMs = 0;
                         await handleJobCompletion(job_id);
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Subir y traducir';
@@ -657,13 +665,41 @@
                     } else if (jobStatus.status === 'failed') {
                         stopPolling();
                         stopProgress();
+                        fallbackRequested = false;
+                        pendingSinceMs = 0;
                         const errorMsg = jobStatus.error_message || 'Error desconocido';
                         setResult(`Error al procesar: ${errorMsg}`, 'error');
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Subir y traducir';
                         cancelBtn.hidden = true;
                     } else if (jobStatus.status === 'processing') {
-                        startProgress('Tu PC está procesando');
+                        startProgress(
+                            jobStatus.worker_id === 'render-fallback'
+                                ? 'Procesando en servidor (Render CPU)'
+                                : 'Procesando con worker dedicado'
+                        );
+                        if (jobStatus.worker_id === 'render-fallback') {
+                            setResult('Procesando en CPU de Render. Puede tardar más por menor potencia disponible.', 'info');
+                        }
+                    } else if (jobStatus.status === 'pending') {
+                        if (!pendingSinceMs) {
+                            pendingSinceMs = Date.now();
+                        }
+
+                        const pendingMs = Date.now() - pendingSinceMs;
+                        if (!fallbackRequested && pendingMs >= FALLBACK_TRIGGER_MS) {
+                            fallbackRequested = true;
+                            setResult('No hay worker externo activo. Activando procesamiento en CPU de Render (más lento)...', 'info');
+                            startProgress('Activando fallback en servidor');
+                            try {
+                                await fetch(`/jobs/${job_id}/process-fallback`, { method: 'POST' });
+                            } catch (_error) {
+                                setResult('No se pudo activar el fallback ahora. Seguimos esperando worker disponible.', 'info');
+                                fallbackRequested = false;
+                            }
+                        } else if (!fallbackRequested) {
+                            setResult('Video en cola. Si no hay worker activo, se usará CPU de Render (más lento).', 'info');
+                        }
                     }
                 }, 2000);  // Poll cada 2 segundos
 

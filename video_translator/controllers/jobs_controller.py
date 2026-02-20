@@ -1,11 +1,17 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
+import asyncio
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from video_translator.models.job import JobStatus, dequeue_next_pending_job, get_job, update_job_status
+from video_translator.services.media_service import extract_audio, replace_audio
+from video_translator.services.transcription_service import transcribe_audio
+from video_translator.services.translation_service import translate_text
+from video_translator.services.tts_service import generate_audio
 
 jobs_router = APIRouter()
 
@@ -22,6 +28,52 @@ def verify_worker_token(x_api_key: str = Header(...)):
     if x_api_key != WORKER_API_KEY:
         raise HTTPException(status_code=403, detail="Token de worker inválido")
     return x_api_key
+
+
+async def _process_job_on_render(job_id: str):
+    """Procesa un job en la CPU del servidor como fallback cuando no hay worker externo."""
+    worker_id = "render-fallback"
+    job = get_job(job_id)
+
+    if not job:
+        return
+
+    input_path = job.get("input_path")
+    if not input_path or not os.path.exists(input_path):
+        update_job_status(
+            job_id,
+            JobStatus.FAILED,
+            error_message="Archivo de entrada no encontrado para fallback",
+            worker_id=worker_id,
+        )
+        return
+
+    output_path = JOBS_DIR / f"{job_id}_output.mp4"
+
+    with tempfile.NamedTemporaryFile(suffix=".aac", delete=False) as temp_audio, tempfile.NamedTemporaryFile(
+        suffix=".mp3", delete=False
+    ) as temp_output_audio:
+        try:
+            extract_audio(input_path, temp_audio.name)
+            transcribed_text = transcribe_audio(temp_audio.name)
+            translated_text = translate_text(transcribed_text)
+            await generate_audio(translated_text, temp_output_audio.name)
+            replace_audio(input_path, temp_output_audio.name, str(output_path))
+            update_job_status(job_id, JobStatus.COMPLETED, output_path=str(output_path), worker_id=worker_id)
+        except Exception as error:
+            update_job_status(
+                job_id,
+                JobStatus.FAILED,
+                error_message=f"Fallback Render falló: {error}",
+                worker_id=worker_id,
+            )
+            if output_path.exists():
+                output_path.unlink()
+        finally:
+            if os.path.exists(temp_audio.name):
+                os.remove(temp_audio.name)
+            if os.path.exists(temp_output_audio.name):
+                os.remove(temp_output_audio.name)
 
 
 @jobs_router.get("/jobs/next", dependencies=[Depends(verify_worker_token)])
@@ -137,3 +189,32 @@ async def upload_job_result(job_id: str, file: UploadFile):
         if output_path.exists():
             output_path.unlink()
         raise HTTPException(status_code=500, detail=f"Error al subir resultado: {error}") from error
+
+
+@jobs_router.post("/jobs/{job_id}/process-fallback")
+async def process_job_fallback(job_id: str):
+    """Dispara procesamiento fallback en Render para un job pendiente."""
+    from video_translator.models.job import claim_job
+
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+
+    if job["status"] == JobStatus.COMPLETED:
+        return {"status": "already_completed"}
+
+    if job["status"] == JobStatus.FAILED:
+        raise HTTPException(status_code=400, detail="El job está en estado failed")
+
+    if job["status"] == JobStatus.PROCESSING:
+        return {"status": "already_processing", "worker_id": job.get("worker_id")}
+
+    if not claim_job(job_id, "render-fallback"):
+        current_job = get_job(job_id)
+        return {
+            "status": "already_processing",
+            "worker_id": current_job.get("worker_id") if current_job else None,
+        }
+
+    asyncio.create_task(_process_job_on_render(job_id))
+    return {"status": "fallback_started", "worker_id": "render-fallback"}
