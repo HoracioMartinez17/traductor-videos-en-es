@@ -169,3 +169,10 @@ def claim_job(job_id: str, worker_id: str) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+
+def delete_job(job_id: str) -> None:
+    """Elimina un job de la base de datos."""
+    with get_db() as conn:
+        conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        conn.commit()

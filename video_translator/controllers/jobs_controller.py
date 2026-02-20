@@ -6,8 +6,9 @@ import asyncio
 
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
-from video_translator.models.job import JobStatus, dequeue_next_pending_job, get_job, update_job_status
+from video_translator.models.job import JobStatus, delete_job, dequeue_next_pending_job, get_job, update_job_status
 from video_translator.services.media_service import extract_audio, replace_audio
 from video_translator.services.transcription_service import transcribe_audio
 from video_translator.services.translation_service import translate_text
@@ -21,6 +22,18 @@ WORKER_API_KEY = os.getenv("WORKER_API_KEY", "change-me-in-production")
 # Directorio para resultados
 JOBS_DIR = Path(__file__).parent.parent.parent / "jobs_data"
 JOBS_DIR.mkdir(exist_ok=True)
+
+
+def _safe_remove(path: Optional[str]) -> None:
+    if path and os.path.exists(path):
+        os.remove(path)
+
+
+def _cleanup_job_files(job_id: str, output_path: Optional[str], input_path: Optional[str]) -> None:
+    """Elimina archivos y metadatos del job tras entregar resultado."""
+    _safe_remove(output_path)
+    _safe_remove(input_path)
+    delete_job(job_id)
 
 
 def verify_worker_token(x_api_key: str = Header(...)):
@@ -60,6 +73,7 @@ async def _process_job_on_render(job_id: str):
             await generate_audio(translated_text, temp_output_audio.name)
             replace_audio(input_path, temp_output_audio.name, str(output_path))
             update_job_status(job_id, JobStatus.COMPLETED, output_path=str(output_path), worker_id=worker_id)
+            _safe_remove(input_path)
         except Exception as error:
             update_job_status(
                 job_id,
@@ -69,6 +83,7 @@ async def _process_job_on_render(job_id: str):
             )
             if output_path.exists():
                 output_path.unlink()
+            _safe_remove(input_path)
         finally:
             if os.path.exists(temp_audio.name):
                 os.remove(temp_audio.name)
@@ -122,7 +137,13 @@ async def download_job_result(job_id: str):
     if not output_path or not os.path.exists(output_path):
         raise HTTPException(status_code=404, detail="Archivo de salida no encontrado")
 
-    return FileResponse(output_path, media_type="video/mp4", filename="translated_video.mp4")
+    input_path = job.get("input_path")
+    return FileResponse(
+        output_path,
+        media_type="video/mp4",
+        filename="translated_video.mp4",
+        background=BackgroundTask(_cleanup_job_files, job_id, output_path, input_path),
+    )
 
 
 @jobs_router.get("/jobs/{job_id}/download-input", dependencies=[Depends(verify_worker_token)])
@@ -182,6 +203,7 @@ async def upload_job_result(job_id: str, file: UploadFile):
 
         # Actualizar job como completado
         update_job_status(job_id, JobStatus.COMPLETED, output_path=str(output_path))
+        _safe_remove(job.get("input_path"))
         
         return {"status": "uploaded", "output_path": str(output_path)}
     
@@ -218,3 +240,16 @@ async def process_job_fallback(job_id: str):
 
     asyncio.create_task(_process_job_on_render(job_id))
     return {"status": "fallback_started", "worker_id": "render-fallback"}
+
+
+@jobs_router.post("/jobs/{job_id}/discard")
+async def discard_job(job_id: str):
+    """Elimina archivos y metadatos de un job cuando el usuario abandona la página."""
+    job = get_job(job_id)
+    if not job:
+        return {"status": "not_found"}
+
+    _safe_remove(job.get("input_path"))
+    _safe_remove(job.get("output_path"))
+    delete_job(job_id)
+    return {"status": "discarded"}
