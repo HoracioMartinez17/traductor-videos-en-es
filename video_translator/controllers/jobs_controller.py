@@ -145,7 +145,7 @@ async def upload_job_result(job_id: str, file: UploadFile):
         return {"status": "uploaded", "output_path": str(output_path)}
     
     except Exception as error:
-        if output_path.exists():
+        if output_path and output_path.exists():
             output_path.unlink()
         raise HTTPException(status_code=500, detail=f"Error al subir resultado: {error}") from error
 

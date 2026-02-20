@@ -38,13 +38,15 @@ def download_youtube_video(url: str) -> str:
             with YoutubeDL(cast(Any, ydl_opts)) as ydl:
                 info = ydl.extract_info(url, download=True)
                 candidate = Path(ydl.prepare_filename(info))
+        
         downloaded_file: Path | None = None
-        if candidate.exists():
+        if candidate and candidate.exists():
             downloaded_file = candidate
         else:
             files = sorted(Path(tmpdir).glob("source.*"))
             if files:
                 downloaded_file = files[0]
+        
         if not downloaded_file or not downloaded_file.exists():
             raise HTTPException(status_code=400, detail="No se pudo descargar el video desde la URL proporcionada")
         if downloaded_file.stat().st_size > MAX_UPLOAD_SIZE:
