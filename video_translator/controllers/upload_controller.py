@@ -19,7 +19,8 @@ from video_translator.utils.upload_controller import (
     humanize_url_download_error,
     download_youtube_video,
     VideoUrlRequest,
-    safe_remove
+    safe_remove,
+    get_youtube_duration
 )
 
 upload_router = APIRouter()
@@ -125,6 +126,28 @@ async def upload_video_from_url_async(payload: VideoUrlRequest, request: Request
             if target not in (JobTarget.CLOUD, JobTarget.PC):
                 raise HTTPException(status_code=400, detail="Target inválido. Usa 'cloud' o 'pc'.")
             
+            # Validar duración obteniendo metadata (sin descargar el video completo)
+            try:
+                duration = get_youtube_duration(url)
+                MAX_VIDEO_DURATION = 300  # 5 minutos
+                if duration > MAX_VIDEO_DURATION:
+                    duration_seconds = int(duration)
+                    minutes = duration_seconds // 60
+                    seconds = duration_seconds % 60
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? "
+                            f"El límite es de 5 minutos por video "
+                            f"y este dura {minutes}:{seconds:02d}."
+                        ),
+                    )
+            except HTTPException:
+                raise
+            except Exception as error:
+                # Si no puede obtener duración, continuar (el worker validará después)
+                print(f"⚠️ No se pudo validar duración desde metadata: {error}")
+            
             # Encolar directamente la URL sin descargar en el servidor
             job_id = create_job(url, JobTarget(target))
             from video_translator.models.job import get_db
@@ -139,6 +162,28 @@ async def upload_video_from_url_async(payload: VideoUrlRequest, request: Request
     # Si target=cloud, descargar en el servidor (puede fallar sin cookies)
     temp_path = None
     try:
+        # Validar duración obteniendo metadata primero
+        try:
+            duration = get_youtube_duration(url)
+            MAX_VIDEO_DURATION = 300  # 5 minutos
+            if duration > MAX_VIDEO_DURATION:
+                duration_seconds = int(duration)
+                minutes = duration_seconds // 60
+                seconds = duration_seconds % 60
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? "
+                        f"El límite es de 5 minutos por video "
+                        f"y este dura {minutes}:{seconds:02d}."
+                    ),
+                )
+        except HTTPException:
+            raise
+        except Exception as error:
+            # Si no puede obtener duración desde metadata, continuar y validar después de descargar
+            print(f"⚠️ No se pudo validar duración desde metadata: {error}")
+        
         temp_path = download_youtube_video(url)
         return enqueue_video(temp_path, target)
     except HTTPException:

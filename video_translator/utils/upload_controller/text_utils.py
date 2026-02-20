@@ -2,3 +2,4 @@ from .humanize_url_download_error import humanize_url_download_error
 from .download_youtube_video import download_youtube_video
 from .video_url_request import VideoUrlRequest
 from .safe_remove import safe_remove
+from .get_youtube_duration import get_youtube_duration
