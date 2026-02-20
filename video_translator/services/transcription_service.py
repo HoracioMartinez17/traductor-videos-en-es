@@ -1,22 +1,17 @@
 from functools import lru_cache
 
-import whisper
+from faster_whisper import WhisperModel
 
 
 @lru_cache(maxsize=1)
 def _get_whisper_model():
-    return whisper.load_model("base")
+    return WhisperModel("small", device="cpu", compute_type="int8")
 
 
 def transcribe_audio(audio_path: str) -> str:
     model = _get_whisper_model()
-    result = model.transcribe(audio_path)
-
-    if result is None or "text" not in result:
-        raise ValueError("Error al transcribir el audio. El resultado es nulo o no contiene texto.")
-
-    text_value = result.get("text", "")
-    text = text_value.strip() if isinstance(text_value, str) else ""
+    segments, _info = model.transcribe(audio_path, vad_filter=True)
+    text = " ".join(segment.text.strip() for segment in segments if segment.text).strip()
 
     if not text:
         raise ValueError("El texto transcrito está vacío. Verifica el audio de entrada.")
