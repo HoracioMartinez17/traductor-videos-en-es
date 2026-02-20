@@ -5,5 +5,4 @@ openai-whisper==20250625
 edge-tts==7.2.3
 transformers==5.2.0
 sacremoses==0.1.1
-torch==2.8.0
 sentencepiece==0.2.1
