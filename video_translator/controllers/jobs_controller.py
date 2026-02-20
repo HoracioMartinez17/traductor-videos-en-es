@@ -24,6 +24,22 @@ def verify_worker_token(x_api_key: str = Header(...)):
     return x_api_key
 
 
+@jobs_router.get("/jobs/next", dependencies=[Depends(verify_worker_token)])
+async def get_next_job():
+    """Endpoint para que el worker obtenga el siguiente job pendiente."""
+    job = get_next_pending_job()
+    if not job:
+        return {"job": None}
+
+    return {
+        "job": {
+            "id": job["id"],
+            "input_path": job["input_path"],
+            "created_at": job["created_at"],
+        }
+    }
+
+
 @jobs_router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str):
     """Consulta el estado de un job."""
@@ -69,22 +85,6 @@ async def download_job_input(job_id: str):
         raise HTTPException(status_code=404, detail="Archivo de entrada no encontrado")
 
     return FileResponse(input_path, media_type="video/mp4", filename="input_video.mp4")
-
-
-@jobs_router.get("/jobs/next", dependencies=[Depends(verify_worker_token)])
-async def get_next_job():
-    """Endpoint para que el worker obtenga el siguiente job pendiente."""
-    job = get_next_pending_job()
-    if not job:
-        return {"job": None}
-
-    return {
-        "job": {
-            "id": job["id"],
-            "input_path": job["input_path"],
-            "created_at": job["created_at"],
-        }
-    }
 
 
 @jobs_router.post("/jobs/{job_id}/claim", dependencies=[Depends(verify_worker_token)])
