@@ -518,6 +518,22 @@
             result.textContent = message;
         }
 
+        function normalizeErrorMessage(message) {
+            const rawMessage = String(message || '');
+            if (rawMessage.includes('El video excede la duración máxima de 5 minutos')) {
+                const durationMatch = rawMessage.match(/Duración:\s*(\d+)s/i);
+                let durationText = '.';
+                if (durationMatch) {
+                    const totalSeconds = Number(durationMatch[1]);
+                    const minutes = Math.floor(totalSeconds / 60);
+                    const seconds = totalSeconds % 60;
+                    durationText = ` y este dura ${minutes}:${String(seconds).padStart(2, '0')}.`;
+                }
+                return `Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? El límite es de 5 minutos por video${durationText}`;
+            }
+            return rawMessage;
+        }
+
         function formatElapsed(ms) {
             const totalSeconds = Math.floor(ms / 1000);
             const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
@@ -679,7 +695,7 @@
 
                     if (!localResponse.ok) {
                         const error = await localResponse.json();
-                        const message = error.detail || error.error || 'Error al procesar el video.';
+                        const message = normalizeErrorMessage(error.detail || error.error || 'Error al procesar el video.');
                         setResult(`Error: ${message}`, 'error');
                         return;
                     }
@@ -713,7 +729,7 @@
 
                 if (!uploadResponse.ok) {
                     const error = await uploadResponse.json();
-                    const message = error.detail || error.error || 'Error al subir el video.';
+                    const message = normalizeErrorMessage(error.detail || error.error || 'Error al subir el video.');
                     setResult(`Error: ${message}`, 'error');
                     return;
                 }

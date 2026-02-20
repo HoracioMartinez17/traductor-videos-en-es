@@ -47,11 +47,15 @@ def _validate_video_duration(video_path: str) -> None:
     try:
         duration = get_video_duration(video_path)
         if duration > MAX_VIDEO_DURATION:
+            duration_seconds = int(duration)
+            minutes = duration_seconds // 60
+            seconds = duration_seconds % 60
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Hermano, te pasaste 😅. El límite es de 5 minutos por video "
-                    f"y este dura {int(duration)}s."
+                    f"Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? "
+                    f"El límite es de 5 minutos por video "
+                    f"y este dura {minutes}:{seconds:02d}."
                 ),
             )
     except subprocess.CalledProcessError:
@@ -178,11 +182,15 @@ async def upload_video(file: UploadFile, request: Request):
         duration = get_video_duration(temp_video.name)
         if duration > MAX_VIDEO_DURATION:
             _safe_remove(temp_video.name)
+            duration_seconds = int(duration)
+            minutes = duration_seconds // 60
+            seconds = duration_seconds % 60
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    f"Hermano, te pasaste 😅. El límite es de 5 minutos por video "
-                    f"y este dura {int(duration)}s."
+                    f"Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? "
+                    f"El límite es de 5 minutos por video "
+                    f"y este dura {minutes}:{seconds:02d}."
                 ),
             )
     except subprocess.CalledProcessError:
