@@ -11,3 +11,5 @@ services:
         sync: false
       - key: WHISPER_MODEL
         value: tiny.en
+      - key: PRELOAD_WHISPER_AT_STARTUP
+        value: "0"

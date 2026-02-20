@@ -37,8 +37,7 @@ El proyecto está organizado por capas para separar responsabilidades y facilita
 
 ### Worker
 
-- `worker.py` es el entrypoint compatible (wrapper).
-- La implementación real está en `video_translator/workers/runner.py`.
+- La implementación y entrada CLI del worker está en `video_translator/workers/runner.py`.
 - Puede ejecutarse en foreground o background con los comandos del `Makefile`.
 
 ## Tecnologías utilizadas

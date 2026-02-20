@@ -24,14 +24,17 @@ def get_video_duration(video_path: str) -> float:
 
 
 def extract_audio(video_path: str, audio_path: str) -> None:
-    subprocess.run(
+    result = subprocess.run(
         ["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "copy", audio_path],
-        check=True,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError(f"Error al extraer audio: {result.stderr}")
 
 
 def replace_audio(video_path: str, audio_path: str, output_video: str) -> None:
-    subprocess.run(
+    result = subprocess.run(
         [
             "ffmpeg",
             "-y",
@@ -47,5 +50,8 @@ def replace_audio(video_path: str, audio_path: str, output_video: str) -> None:
             "1:a:0",
             output_video,
         ],
-        check=True,
+        capture_output=True,
+        text=True,
     )
+    if result.returncode != 0:
+        raise RuntimeError(f"Error al reemplazar audio (código {result.returncode}): {result.stderr}")

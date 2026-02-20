@@ -18,9 +18,26 @@ def download_youtube_video(url: str) -> str:
             "outtmpl": outtmpl,
             "merge_output_format": "mp4",
         }
-        with YoutubeDL(cast(Any, ydl_opts)) as ydl:
-            info = ydl.extract_info(url, download=True)
-            candidate = Path(ydl.prepare_filename(info))
+        
+        # Intentar con cookies de navegador primero
+        info = None
+        candidate = None
+        for browser in ['chrome', 'edge', 'firefox']:
+            try:
+                ydl_opts_with_cookies = ydl_opts.copy()
+                ydl_opts_with_cookies['cookiesfrombrowser'] = (browser,)
+                with YoutubeDL(cast(Any, ydl_opts_with_cookies)) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    candidate = Path(ydl.prepare_filename(info))
+                break
+            except Exception:
+                continue
+        
+        # Si falla con cookies, intentar sin cookies
+        if not info:
+            with YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                info = ydl.extract_info(url, download=True)
+                candidate = Path(ydl.prepare_filename(info))
         downloaded_file: Path | None = None
         if candidate.exists():
             downloaded_file = candidate

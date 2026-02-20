@@ -54,7 +54,11 @@ async def upload_video(file: UploadFile, request: Request):
     except Exception:
         safe_remove(temp_video.name)
         raise HTTPException(status_code=400, detail="No se pudo leer la duración del video")
-    output_video = f"{temp_video.name}_translated.mp4"
+    
+    # Crear archivo de salida temporal con nombre apropiado
+    with tempfile.NamedTemporaryFile(suffix="_output.mp4", delete=False) as temp_output:
+        output_video = temp_output.name
+    
     try:
         process_video(
             temp_video.name,
@@ -69,10 +73,11 @@ async def upload_video(file: UploadFile, request: Request):
             output_video,
             media_type="video/mp4",
             filename="translated_video.mp4",
-            background=BackgroundTask(safe_remove, output_video),
+            background=BackgroundTask(lambda: (safe_remove(temp_video.name), safe_remove(output_video))),
         )
     except Exception as error:
         safe_remove(temp_video.name)
+        safe_remove(output_video)
         raise HTTPException(status_code=500, detail=f"Error procesando video: {error}")
 
 @upload_router.post("/upload-async")
@@ -113,6 +118,25 @@ async def upload_video_from_url_async(payload: VideoUrlRequest, request: Request
         raise HTTPException(status_code=400, detail="Debes proporcionar una URL")
     if not is_supported_youtube_url(url):
         raise HTTPException(status_code=400, detail="Solo se aceptan URLs de YouTube")
+    
+    # Si target=pc, el worker local descargará la URL (con cookies de navegador)
+    if target == "pc":
+        try:
+            if target not in (JobTarget.CLOUD, JobTarget.PC):
+                raise HTTPException(status_code=400, detail="Target inválido. Usa 'cloud' o 'pc'.")
+            
+            # Encolar directamente la URL sin descargar en el servidor
+            job_id = create_job(url, JobTarget(target))
+            from video_translator.models.job import get_db
+            with get_db() as conn:
+                conn.execute("UPDATE jobs SET input_path = ? WHERE id = ?", (url, job_id))
+                conn.commit()
+            
+            return {"job_id": job_id, "status": "queued", "target": target}
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=f"Error al encolar el video: {error}")
+    
+    # Si target=cloud, descargar en el servidor (puede fallar sin cookies)
     temp_path = None
     try:
         temp_path = download_youtube_video(url)

@@ -120,3 +120,7 @@ def main():
     worker = Worker(api_url=args.api_url, api_key=args.api_key, worker_id=args.worker_id)
 
     asyncio.run(worker.run(poll_interval=args.poll_interval))
+
+
+if __name__ == "__main__":
+    main()

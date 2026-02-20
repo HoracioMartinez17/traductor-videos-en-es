@@ -4,3 +4,14 @@ __pycache__
 .git
 .gitignore
 .vscode
+.mypy_cache
+.pytest_cache
+.pyright
+jobs_data
+jobs.db
+jobs.db-*
+*.log
+*.md
+.env
+.env.*
+!requirements.txt
