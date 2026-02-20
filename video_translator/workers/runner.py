@@ -8,11 +8,13 @@ from video_translator.services.media_service import extract_audio, replace_audio
 from video_translator.services.transcription_service import transcribe_audio
 from video_translator.services.translation_service import translate_text
 from video_translator.services.tts_service import generate_audio
+from video_translator.utils.worker.validate_video_duration import validate_video_duration
 from video_translator.utils.worker import (
     claim_job,
     cleanup_temp_files,
     download_file_from_api,
     download_youtube_video,
+    get_youtube_duration,
     get_next_job,
     is_supported_youtube_url,
     mark_failed,
@@ -71,7 +73,17 @@ class Worker:
 
             try:
                 if input_path and is_supported_youtube_url(input_path):
+                    duration = get_youtube_duration(input_path)
+                    if duration > 300:
+                        duration_seconds = int(duration)
+                        minutes = duration_seconds // 60
+                        seconds = duration_seconds % 60
+                        raise ValueError(
+                            "El video excede el límite de 5 minutos "
+                            f"({minutes}:{seconds:02d})."
+                        )
                     await download_youtube_video(input_path, local_input)
+                    validate_video_duration(local_input)
                 else:
                     await self.download_input(job_id, local_input)
 
