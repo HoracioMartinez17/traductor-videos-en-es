@@ -1,9 +1,9 @@
 import tempfile
 import shutil
 from pathlib import Path
-from typing import Any, cast
 from fastapi import HTTPException
-from yt_dlp import YoutubeDL
+
+from video_translator.utils.shared.yt_dlp_utils import extract_info_with_fallback
 
 MAX_UPLOAD_SIZE = 300 * 1024 * 1024  # 300 MB
 
@@ -18,26 +18,9 @@ def download_youtube_video(url: str) -> str:
             "outtmpl": outtmpl,
             "merge_output_format": "mp4",
         }
-        
-        # Intentar con cookies de navegador primero
-        info = None
-        candidate = None
-        for browser in ['chrome', 'edge', 'firefox']:
-            try:
-                ydl_opts_with_cookies = ydl_opts.copy()
-                ydl_opts_with_cookies['cookiesfrombrowser'] = (browser,)
-                with YoutubeDL(cast(Any, ydl_opts_with_cookies)) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    candidate = Path(ydl.prepare_filename(info))
-                break
-            except Exception:
-                continue
-        
-        # Si falla con cookies, intentar sin cookies
-        if not info:
-            with YoutubeDL(cast(Any, ydl_opts)) as ydl:
-                info = ydl.extract_info(url, download=True)
-                candidate = Path(ydl.prepare_filename(info))
+
+        info, candidate_path, _ = extract_info_with_fallback(url, ydl_opts, download=True)
+        candidate = Path(candidate_path) if candidate_path else None
         
         downloaded_file: Path | None = None
         if candidate and candidate.exists():

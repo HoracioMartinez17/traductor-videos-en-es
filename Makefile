@@ -38,10 +38,10 @@ worker-start:
 	fi
 	@if [ -f "$(WORKER_PID_FILE)" ] && kill -0 "$$(cat $(WORKER_PID_FILE))" 2>/dev/null; then \
 		echo "Worker ya está corriendo con PID $$(cat $(WORKER_PID_FILE))"; \
-		exit 0; \
+	else \
+		nohup $(PYTHON) -m video_translator.workers.runner --api-url $(API_URL) --api-key $(WORKER_API_KEY) --worker-id $(WORKER_ID) > /dev/null 2>&1 & echo $$! > $(WORKER_PID_FILE); \
+		echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). API: $(API_URL). Logs desactivados."; \
 	fi
-	@nohup $(PYTHON) -m video_translator.workers.runner --api-url $(API_URL) --api-key $(WORKER_API_KEY) --worker-id $(WORKER_ID) > /dev/null 2>&1 & echo $$! > $(WORKER_PID_FILE)
-	@echo "Worker iniciado en segundo plano (PID $$(cat $(WORKER_PID_FILE))). API: $(API_URL). Logs desactivados."
 
 worker-start-local:
 	@$(MAKE) worker-start API_URL=$(API_URL_LOCAL) WORKER_API_KEY="$(WORKER_API_KEY)" WORKER_ID=local-worker

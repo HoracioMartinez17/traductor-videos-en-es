@@ -11,6 +11,100 @@ Aplicación web para traducir videos al español usando transcripción, traducci
 
 ## Arquitectura (explicada)
 
+### Estructura de carpetas
+
+```text
+traductor-videos-web/
+├── app.py
+├── Dockerfile
+├── Makefile
+├── README.md
+├── requirements.txt
+├── render.yaml
+├── jobs_data/
+├── static/
+│   ├── css/
+│   │   ├── index.css
+│   │   └── app/
+│   │       ├── alerts.css
+│   │       ├── base.css
+│   │       ├── forms.css
+│   │       ├── layout.css
+│   │       ├── progress.css
+│   │       ├── responsive.css
+│   │       ├── tokens.css
+│   │       └── video.css
+│   └── js/
+│       ├── main.js
+│       └── app/
+│           ├── api.js
+│           ├── dom.js
+│           ├── environment.js
+│           ├── index.js
+│           ├── state.js
+│           ├── ui.js
+│           └── workflow.js
+├── templates/
+│   └── index.html
+└── video_translator/
+    ├── __init__.py
+    ├── app_factory.py
+    ├── controllers/
+    │   ├── jobs_controller.py
+    │   ├── upload_controller.py
+    │   └── web_controller.py
+    ├── models/
+    │   └── job.py
+    ├── services/
+    │   ├── media_service.py
+    │   ├── transcription_service.py
+    │   ├── translation_service.py
+    │   └── tts_service.py
+    ├── utils/
+    │   ├── jobs_controller/
+    │   │   ├── __init__.py
+    │   │   ├── cleanup_job_files.py
+    │   │   ├── process_job_on_render.py
+    │   │   └── safe_remove.py
+    │   ├── shared/
+    │   │   ├── __init__.py
+    │   │   ├── files.py
+    │   │   ├── video_pipeline.py
+    │   │   └── yt_dlp_utils.py
+    │   ├── text/
+    │   │   ├── __init__.py
+    │   │   ├── split_text.py
+    │   │   └── text_utils.py
+    │   ├── upload_controller/
+    │   │   ├── __init__.py
+    │   │   ├── download_youtube_video.py
+    │   │   ├── get_youtube_duration.py
+    │   │   ├── humanize_url_download_error.py
+    │   │   ├── safe_remove.py
+    │   │   ├── text_utils.py
+    │   │   └── video_url_request.py
+    │   └── worker/
+    │       ├── __init__.py
+    │       ├── claim_job.py
+    │       ├── cleanup_temp_files.py
+    │       ├── download_file_from_api.py
+    │       ├── download_youtube_video.py
+    │       ├── enqueue_video.py
+    │       ├── get_next_job.py
+    │       ├── get_youtube_duration.py
+    │       ├── ip_utils.py
+    │       ├── is_supported_youtube_url.py
+    │       ├── mark_failed.py
+    │       ├── process_and_translate.py
+    │       ├── process_video.py
+    │       ├── upload_file_to_api.py
+    │       ├── validate_video_duration.py
+    │       └── worker_utils.py
+    └── workers/
+        ├── __init__.py
+        └── runner.py
+```
+
 El proyecto está organizado por capas para separar responsabilidades y facilitar mantenimiento:
 
 - `controllers/`: capa HTTP. Recibe requests, valida entradas y coordina flujos.

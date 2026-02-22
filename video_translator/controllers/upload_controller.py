@@ -61,7 +61,7 @@ async def upload_video(file: UploadFile, request: Request):
         output_video = temp_output.name
     
     try:
-        process_video(
+        await process_video(
             temp_video.name,
             output_video,
             extract_audio,

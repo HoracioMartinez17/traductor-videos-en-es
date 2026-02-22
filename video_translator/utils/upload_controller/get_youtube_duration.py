@@ -1,5 +1,4 @@
-from typing import Any, cast
-from yt_dlp import YoutubeDL
+from video_translator.utils.shared.yt_dlp_utils import extract_info_with_fallback
 
 
 class _SilentLogger:
@@ -21,9 +20,8 @@ def get_youtube_duration(url: str) -> float:
         "logger": _SilentLogger(),
     }
 
-    with YoutubeDL(cast(Any, ydl_opts)) as ydl:
-        info = ydl.extract_info(url, download=False)
-        if info and "duration" in info and info["duration"]:
-            return float(info["duration"])
+    info, _, _ = extract_info_with_fallback(url, ydl_opts, download=False)
+    if info and "duration" in info and info["duration"]:
+        return float(info["duration"])
 
     raise ValueError("No se pudo obtener la duración del video")

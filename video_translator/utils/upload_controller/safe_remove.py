@@ -1,5 +1,1 @@
-import os
-
-def safe_remove(path: str) -> None:
-    if os.path.exists(path):
-        os.remove(path)
+from video_translator.utils.shared.files import safe_remove

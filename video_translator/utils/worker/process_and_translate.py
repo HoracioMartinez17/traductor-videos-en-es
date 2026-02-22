@@ -1,31 +1,31 @@
-import os
-import tempfile
+from video_translator.utils.shared.video_pipeline import process_video_pipeline
 
 async def process_and_translate(input_path: str, output_path: str, extract_audio, transcribe_audio, translate_text, generate_audio, replace_audio) -> None:
-    with tempfile.NamedTemporaryFile(suffix=".aac", delete=False) as temp_audio, tempfile.NamedTemporaryFile(
-        suffix=".mp3", delete=False
-    ) as temp_output_audio:
-        try:
+    def on_step(step: str, payload: str | None) -> None:
+        if step == "extract_audio:start":
             print("  🎵 Extrayendo audio...")
-            extract_audio(input_path, temp_audio.name)
-
+        elif step == "transcribe:start":
             print("  🎤 Transcribiendo...")
-            transcribed_text = transcribe_audio(temp_audio.name)
-            print(f"  📝 Transcrito: {transcribed_text[:100]}...")
-
+        elif step == "transcribe:done" and payload is not None:
+            print(f"  📝 Transcrito: {payload}...")
+        elif step == "translate:start":
             print("  🌐 Traduciendo...")
-            translated_text = translate_text(transcribed_text)
-            print(f"  ✅ Traducido: {translated_text[:100]}...")
-
+        elif step == "translate:done" and payload is not None:
+            print(f"  ✅ Traducido: {payload}...")
+        elif step == "tts:start":
             print("  🔊 Generando audio traducido...")
-            await generate_audio(translated_text, temp_output_audio.name)
-
+        elif step == "replace_audio:start":
             print("  🎬 Reemplazando audio en video...")
-            replace_audio(input_path, temp_output_audio.name, output_path)
-
+        elif step == "pipeline:done":
             print("  ✅ Video procesado correctamente")
-        finally:
-            if os.path.exists(temp_audio.name):
-                os.remove(temp_audio.name)
-            if os.path.exists(temp_output_audio.name):
-                os.remove(temp_output_audio.name)
+
+    await process_video_pipeline(
+        input_path,
+        output_path,
+        extract_audio,
+        transcribe_audio,
+        translate_text,
+        generate_audio,
+        replace_audio,
+        on_step=on_step,
+    )

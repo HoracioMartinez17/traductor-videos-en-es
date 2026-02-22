@@ -79,8 +79,9 @@ class Worker:
                         minutes = duration_seconds // 60
                         seconds = duration_seconds % 60
                         raise ValueError(
-                            "El video excede el límite de 5 minutos "
-                            f"({minutes}:{seconds:02d})."
+                            "Hermano, te pasaste 😅 ¿Qué piensas, que tengo un ordenador de la NASA o qué? "
+                            "El límite es de 5 minutos por video "
+                            f"y este dura {minutes}:{seconds:02d}."
                         )
                     await download_youtube_video(input_path, local_input)
                     validate_video_duration(local_input)
