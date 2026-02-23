@@ -16,5 +16,7 @@ export const elements = {
     modeCloudBtn: document.getElementById('modeCloudBtn'),
     modeHelp: document.getElementById('modeHelp'),
     modeWarning: document.getElementById('modeWarning'),
-    modeToggle: document.getElementById('modeToggle')
+    modeToggle: document.getElementById('modeToggle'),
+    useDemoUrlBtn: document.getElementById('useDemoUrlBtn'),
+    copyDemoUrlBtn: document.getElementById('copyDemoUrlBtn')
 };
